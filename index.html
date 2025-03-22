@@ -103,7 +103,8 @@
 		// Any time the mouse moves over the svg area...
 		svg.on("mousemove", (e)=>{
 			if (squareBeingClicked) {
-				manipulator.center(e.offsetX, e.offsetY);
+				const squareSize = judge.getCurrentTask().start.size;
+				manipulator.move(e.offsetX - squareSize, e.offsetY);
 			}
 		})
 
@@ -121,18 +122,15 @@
 			manipulator.add(task.start.square);
 			goal.add(task.goal.square);
 
-			// add some event handlers to the square
-			// https://svgjs.dev/docs/3.0/events/#event-listeners
-			let squareClickHandler = function() {
-				console.log("Click!");
-			}
-			task.start.square.on("click", squareClickHandler);
-
-			task.start.square.on("mousedown", (e)=> {
+			// Add mousedown handler to the entire SVG canvas
+			svg.on("mousedown", (e)=> {
 				squareBeingClicked = true;
+				const squareSize = task.start.size;
+				// Position so upper right corner aligns with mouse position
+				manipulator.move(e.offsetX - squareSize, e.offsetY);
 			});
 
-			task.start.square.on("mouseup", (e)=> {
+			svg.on("mouseup", (e)=> {
 				squareBeingClicked = false;
 			});
 		});
