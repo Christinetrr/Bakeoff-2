@@ -125,6 +125,8 @@
 			// Add mousedown handler to the entire SVG canvas
 			svg.on("mousedown", (e)=> {
 				squareBeingClicked = true;
+				const point = svg.point(e.clientX, e.clientY);
+				const square = task.start.square;
 				const squareSize = task.start.size;
 				// Position so upper right corner aligns with mouse position
 				manipulator.move(e.offsetX - squareSize, e.offsetY);
