@@ -140,5 +140,43 @@
 		// once you've got your handlers set up, start it up:
 		judge.setup();
 		
+		// Add this helper function to find the bottom right corner
+		function getBottomRightCorner(corners) {
+			// Find the corner with the largest sum of x and y coordinates
+			return corners.reduce((bottomRight, vertex) => {
+				// Compare using the sum of x and y
+				return (vertex.x + vertex.y > bottomRight.x + bottomRight.y) ? vertex : bottomRight;
+			}, corners[0]);
+		}
+
+		// Function to update the corner indicator position
+		const updateCornerIndicator = () => {
+			const square = task.start.square;
+			const squareSize = task.start.size;
+			const matrix = square.transform();
+			
+			// Calculate all four corners (before rotation)
+			const corners = [
+				{ x: 0, y: 0 },                 // top-left
+				{ x: squareSize, y: 0 },        // top-right
+				{ x: 0, y: squareSize },        // bottom-left
+				{ x: squareSize, y: squareSize } // bottom-right
+			];
+			
+			// Apply transformation matrix to get actual corner positions
+			const transformedCorners = corners.map(corner => transformPoint(corner, matrix));
+			
+			// Update stored corner positions
+			squareCorners.topLeft = transformedCorners[0];
+			squareCorners.topRight = transformedCorners[1];
+			squareCorners.bottomLeft = transformedCorners[2];
+			squareCorners.bottomRight = transformedCorners[3];
+			
+			// Find the true bottom right corner using our objective method
+			const trueBottomRight = getBottomRightCorner(transformedCorners);
+			
+			// Position the indicator at the true bottom right
+			cornerIndicator.center(trueBottomRight.x, trueBottomRight.y);
+		};
 	</script>
 </html>
