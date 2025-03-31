@@ -95,16 +95,71 @@
 
 		// And a global variable for dragging
 		let squareBeingClicked = false;
+		let resizeMode = false;
+		let originalSize = 0;
+		let startDragPos = { x: 0, y: 0 };
+		let resizeHandle = null;
+		const MIN_SQUARE_SIZE = 30; // Minimum square size to prevent scaling issues
 
 		// These "SVG groups" will hold the squares. I could put other things in these groups, and then everything would move together.
 		let manipulator = svg.group();
 		let goal = svg.group();
 
+		// Function to update the resize handle position
+		function updateResizeHandlePosition() {
+			const task = judge.getCurrentTask();
+			if (!task || !resizeHandle) return;
+			
+			// Get the square's properties
+			const square = task.start.square;
+			const squareSize = square.width();
+			
+			// Get the bounding box to find the bottom-right corner
+			const bbox = square.bbox();
+			const bottomRightX = bbox.x + bbox.width;
+			const bottomRightY = bbox.y + bbox.height;
+			
+			// Position the resize handle at the bottom right corner
+			// Position it 8px from the corner to ensure it's visible
+			resizeHandle.move(
+				bottomRightX - 18, 
+				bottomRightY - 18
+			);
+		}
+
 		// Any time the mouse moves over the svg area...
 		svg.on("mousemove", (e)=>{
 			if (squareBeingClicked) {
-				const squareSize = judge.getCurrentTask().start.size;
-				manipulator.move(e.offsetX - squareSize, e.offsetY);
+				if (resizeMode) {
+					// Handle resizing
+					const task = judge.getCurrentTask();
+					const dx = e.clientX - startDragPos.x;
+					const dy = e.clientY - startDragPos.y;
+					
+					// Calculate new size based on the maximum change in either direction
+					// This keeps the resize more controlled and predictable
+					const dragDistance = Math.max(dx, dy);
+					
+					// Apply the new size with a minimum limit to prevent scaling issues
+					const newSize = Math.max(MIN_SQUARE_SIZE, originalSize + dragDistance);
+					
+					// Resize the square
+					task.start.square.size(newSize, newSize);
+					
+					// Update resize handle position
+					updateResizeHandlePosition();
+				} else {
+					// Handle moving
+					const task = judge.getCurrentTask();
+					const squareSize = task.start.square.width();
+					
+					// Position the square so its top-right corner is at the cursor
+					const point = svg.point(e.clientX, e.clientY);
+					manipulator.move(point.x - squareSize, point.y);
+					
+					// Update resize handle position
+					updateResizeHandlePosition();
+				}
 			}
 		})
 
@@ -121,19 +176,72 @@
 			// add the new squares to the groups
 			manipulator.add(task.start.square);
 			goal.add(task.goal.square);
+			
+			// Remove existing resize handle if it exists
+			if (resizeHandle) {
+				resizeHandle.remove();
+			}
+			
+			// Create the resize handle - a small red box with diagonal dashed lines
+			resizeHandle = svg.group();
+			
+			// Background box
+			const handleBg = svg.rect(18, 18)
+				.fill('#ff0000')
+				.opacity(0.8)
+				.radius(2);
+			
+			// Add diagonal dashed lines
+			const diag1 = svg.line(3, 15, 15, 3)
+				.stroke({ color: 'white', width: 1.5, dasharray: '2,1' });
+			const diag2 = svg.line(6, 15, 15, 6)
+				.stroke({ color: 'white', width: 1.5, dasharray: '2,1' });
+			const diag3 = svg.line(9, 15, 15, 9)
+				.stroke({ color: 'white', width: 1.5, dasharray: '2,1' });
+			
+			// Add the elements to the handle group
+			resizeHandle.add(handleBg);
+			resizeHandle.add(diag1);
+			resizeHandle.add(diag2);
+			resizeHandle.add(diag3);
+			
+			// Add the handle to the manipulator group
+			manipulator.add(resizeHandle);
+			
+			// Position the handle at the bottom right corner
+			updateResizeHandlePosition();
 
 			// Add mousedown handler to the entire SVG canvas
 			svg.on("mousedown", (e)=> {
-				squareBeingClicked = true;
 				const point = svg.point(e.clientX, e.clientY);
 				const square = task.start.square;
 				const squareSize = task.start.size;
-				// Position so upper right corner aligns with mouse position
-				manipulator.move(e.offsetX - squareSize, e.offsetY);
+				
+				// Check if we're clicking on the resize handle
+				const handleBounds = resizeHandle.bbox();
+				if (point.x >= handleBounds.x && point.x <= handleBounds.x + handleBounds.width &&
+					point.y >= handleBounds.y && point.y <= handleBounds.y + handleBounds.height) {
+					// Start resize mode
+					resizeMode = true;
+					originalSize = squareSize;
+					startDragPos = { x: e.clientX, y: e.clientY };
+				} else {
+					// Start move mode
+					resizeMode = false;
+					
+					// Position the square so its top-right corner is at the cursor
+					manipulator.move(point.x - squareSize, point.y);
+					
+					// Update resize handle position
+					updateResizeHandlePosition();
+				}
+				
+				squareBeingClicked = true;
 			});
 
 			svg.on("mouseup", (e)=> {
 				squareBeingClicked = false;
+				resizeMode = false;
 			});
 		});
 
@@ -149,34 +257,12 @@
 			}, corners[0]);
 		}
 
-		// Function to update the corner indicator position
-		const updateCornerIndicator = () => {
-			const square = task.start.square;
-			const squareSize = task.start.size;
-			const matrix = square.transform();
-			
-			// Calculate all four corners (before rotation)
-			const corners = [
-				{ x: 0, y: 0 },                 // top-left
-				{ x: squareSize, y: 0 },        // top-right
-				{ x: 0, y: squareSize },        // bottom-left
-				{ x: squareSize, y: squareSize } // bottom-right
-			];
-			
-			// Apply transformation matrix to get actual corner positions
-			const transformedCorners = corners.map(corner => transformPoint(corner, matrix));
-			
-			// Update stored corner positions
-			squareCorners.topLeft = transformedCorners[0];
-			squareCorners.topRight = transformedCorners[1];
-			squareCorners.bottomLeft = transformedCorners[2];
-			squareCorners.bottomRight = transformedCorners[3];
-			
-			// Find the true bottom right corner using our objective method
-			const trueBottomRight = getBottomRightCorner(transformedCorners);
-			
-			// Position the indicator at the true bottom right
-			cornerIndicator.center(trueBottomRight.x, trueBottomRight.y);
-		};
+		// Helper function for transforming points with a matrix
+		function transformPoint(point, matrix) {
+			return {
+				x: matrix.a * point.x + matrix.c * point.y + matrix.e,
+				y: matrix.b * point.x + matrix.d * point.y + matrix.f
+			};
+		}
 	</script>
 </html>
