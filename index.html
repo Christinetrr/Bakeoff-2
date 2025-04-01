@@ -49,7 +49,7 @@
 		let svg = SVG().addTo('#main').size(""+canvasSize+"px", ""+canvasSize+"px");
 
 		// Initialize the "judge" object with the number of tasks per trial, your svg drawing area, and a team name.
-		const judge = new Judge(tasksLength, svg, "teamName");
+		const judge = new Judge(tasksLength, svg, "SoGiCh");
 		// =========== /end required =========== 
 
 		// Events you can assign handlers to:
@@ -154,7 +154,7 @@
 			const rotateText = svg.text("R")
 				.font({ size: 14, anchor: 'middle' })
 				.fill('white')
-				.center(9, 9);
+				.center(13, 10);
 			
 			resizeHandle.add(handleBg);
 			resizeHandle.add(rotateText);
