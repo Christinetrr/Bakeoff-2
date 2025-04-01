@@ -100,8 +100,6 @@
 		let alignMode = false;  
 		let originalSize = 0;
 		let startDragPos = { x: 0, y: 0 };
-		let centerPoint = { x: 0, y: 0 };
-		let startRotation = 0;
 		let resizeHandle = null;
 		const MIN_SQUARE_SIZE = 30;
 
@@ -121,25 +119,6 @@
 		// These "SVG groups" will hold the squares. I could put other things in these groups, and then everything would move together.
 		let manipulator = svg.group();
 		let goal = svg.group();
-
-		// Function to get the topmost corner of a rotated square
-		function getTopmostCorner(square) {
-			const bbox = square.bbox();
-			const rotation = square.transform().rotate;
-			
-			// Get all four corners
-			const corners = [
-				{x: bbox.x, y: bbox.y},                         // top-left
-				{x: bbox.x + bbox.width, y: bbox.y},           // top-right
-				{x: bbox.x, y: bbox.y + bbox.height},          // bottom-left
-				{x: bbox.x + bbox.width, y: bbox.y + bbox.height}  // bottom-right
-			];
-			
-			// Find the corner with the smallest y value (closest to top)
-			return corners.reduce((topCorner, corner) => {
-				return corner.y < topCorner.y ? corner : topCorner;
-			}, corners[0]);
-		}
 
 		// When a new task is assigned, run this...
 		judge.on("newTask", () => {
@@ -185,22 +164,20 @@
 			const handleY = canvasSize - 40;  // 40px from bottom
 			resizeHandle.move(handleX, handleY);
 			
-			// Add the handle directly to the svg, not to the square group
+			// Add the handle directly to the svg
 			svg.add(resizeHandle);
 
-			// Add click handler to the SVG for alignment mode
+			// Add click handler to the SVG for alignment mode (when user clicks 'a')
 			svg.on("click", (e) => {
 				if (alignMode) {
 					const task = judge.getCurrentTask();
 					const squareSize = task.start.square.width();
 					
-					// To align top-right corner with cursor:
-					// Move center left by half width to push right edge to cursor
-					// Move center down by half height to push top edge to cursor
+					// Align top-right corner with cursor
 					manipulator.center(e.offsetX - squareSize/2, e.offsetY + squareSize/2);
 				}
 			});
-			// Modify mousedown handler to check for alignment mode
+			// Check if user's in alignment mode
 			svg.on("mousedown", (e)=> {
 				if (alignMode) {
 					return;
@@ -210,7 +187,7 @@
 				const square = task.start.square;
 				const squareSize = square.width();
 				
-				// Check if clicking resize handle
+				// Check if clicking resize button
 				const handleBounds = resizeHandle.bbox();
 				if (point.x >= handleBounds.x && point.x <= handleBounds.x + handleBounds.width &&
 					point.y >= handleBounds.y && point.y <= handleBounds.y + handleBounds.height) {
@@ -244,7 +221,7 @@
 					const squareTop = squareCenter.y + squareCenter.height/2 - halfSize;
 					const squareBottom = squareTop + square.width();
 					
-					// Simple bounds check
+					// Bounds checking
 					if (e.offsetX >= squareLeft && e.offsetX <= squareRight && 
 						e.offsetY >= squareTop && e.offsetY <= squareBottom) {
 						rotateMode = false;
@@ -253,7 +230,7 @@
 						// Store the initial point in SVG coordinates
 						startDragPos = svg.point(e.clientX, e.clientY);
 					} else {
-						// Clicked outside square - no dragging
+						// No drag if clicking outside square
 						squareBeingClicked = false;
 					}
 				}
@@ -264,7 +241,7 @@
 				squareBeingClicked = false;
 				resizeMode = false;
 				rotateMode = false;
-				startRotation = null;  // Reset the rotation start angle
+				startRotation = null;  
 			});
 			
 			// Instructions for alignment 
@@ -286,70 +263,55 @@
 				.move(10, canvasSize - 20);
 		});
 
-		// once you've got your handlers set up, start it up:
-		judge.setup();
 		
-		// Add this helper function to find the bottom right corner
-		function getBottomRightCorner(corners) {
-			// Find the corner with the largest sum of x and y coordinates
-			return corners.reduce((bottomRight, vertex) => {
-				// Compare using the sum of x and y
-				return (vertex.x + vertex.y > bottomRight.x + bottomRight.y) ? vertex : bottomRight;
-			}, corners[0]);
-		}
-
-		// Helper function for transforming points with a matrix
-		function transformPoint(point, matrix) {
-			return {
-				x: matrix.a * point.x + matrix.c * point.y + matrix.e,
-				y: matrix.b * point.x + matrix.d * point.y + matrix.f
-			};
-		}
+		judge.setup();
+				
 
 		svg.on("mousemove", (e)=>{
-if (squareBeingClicked && !alignMode) { // Only allow dragging when not in align mode
-    if (rotateMode) {
-      const task = judge.getCurrentTask();
-      const square = task.start.square;
-      
-      // Calculate total distance moved from original click position
-      const dx = e.clientX - startDragPos.x;
-      
-      // Very slow rotation - 1 degree per 200 pixels
-      const rotationPerPixel = 0.005;
-      const newRotation = startRotation + (dx * rotationPerPixel);
-      
-      // Apply rotation
-      square.rotate(newRotation);
-      task.start.rotation = newRotation;
-    }
-    else if (resizeMode) {
-      const task = judge.getCurrentTask();
-      const dx = e.clientX - startDragPos.x;
-      
-      //drag horizontally for scaling 
-      const newSize = Math.max(MIN_SQUARE_SIZE, originalSize + dx);
-      
-      task.start.square.size(newSize, newSize);
-    } else {
-      const task = judge.getCurrentTask();
-      const square = task.start.square;
-      const squareSize = square.width();
-      
-      // Calculate bounds to keep square fully visible
-      const halfSize = squareSize / 2;
-      const minX = halfSize;
-      const maxX = canvasSize - halfSize;
-      const minY = halfSize;
-      const maxY = canvasSize - halfSize;
-      
-      // Clamp the position within bounds
-      const newX = Math.min(Math.max(e.offsetX, minX), maxX);
-      const newY = Math.min(Math.max(e.offsetY, minY), maxY);
-      
-      manipulator.center(newX, newY);
-    }
-  }
-});
+		// Only allow dragging when not in align mode
+		if (squareBeingClicked && !alignMode) { 
+			if (rotateMode) {
+			const task = judge.getCurrentTask();
+			const square = task.start.square;
+			
+			// Calculate total distance moved from original click position
+			const dx = e.clientX - startDragPos.x;
+			
+			//rotation scalar
+			const rotationPerPixel = 0.005;
+			const newRotation = startRotation + (dx * rotationPerPixel);
+			
+			// Apply rotation
+			square.rotate(newRotation);
+			task.start.rotation = newRotation;
+			}
+			else if (resizeMode) {
+			const task = judge.getCurrentTask();
+			const dx = e.clientX - startDragPos.x;
+			
+			//drag horizontally for scaling 
+			const newSize = Math.max(MIN_SQUARE_SIZE, originalSize + dx);
+			
+			task.start.square.size(newSize, newSize);
+			} else {
+			const task = judge.getCurrentTask();
+			const square = task.start.square;
+			const squareSize = square.width();
+			
+			// Calculate bounds to keep square fully visible
+			const halfSize = squareSize / 2;
+			const minX = halfSize;
+			const maxX = canvasSize - halfSize;
+			const minY = halfSize;
+			const maxY = canvasSize - halfSize;
+			
+			// Clamp the position within bounds
+			const newX = Math.min(Math.max(e.offsetX, minX), maxX);
+			const newY = Math.min(Math.max(e.offsetY, minY), maxY);
+			
+			manipulator.center(newX, newY);
+			}
+		}
+	});
 	</script>
 </html>
